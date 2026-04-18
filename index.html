@@ -290,6 +290,28 @@ tr.row-diff:hover td { background: #fff5e0; }
   .nav-files { display: none; }
 }
 </style>
+<!-- ── MICO Auth Guard ─────────────────────────────────────────────────────── -->
+<style id="mico-auth-style">body{visibility:hidden!important}</style>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script>
+(async function micoAuthGuard() {
+  const AUTH_URL = 'https://kbqkwlhmkvwnutqkcstx.supabase.co';
+  const AUTH_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImticWt3bGhta3Z3bnV0cWtjc3R4Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzYxMDY0ODUsImV4cCI6MjA5MTY4MjQ4NX0.Fxhi8kP391JBOMNuQvRpT7p4ssf-z5oxv-ooslrsEj4';
+  const LOGIN_URL = 'https://login.micocc.net';
+  const authClient = window.supabase.createClient(AUTH_URL, AUTH_KEY, {
+    auth: { storageKey: 'mico-auth', detectSessionInUrl: true, autoRefreshToken: true, persistSession: true }
+  });
+  const { data: { session } } = await authClient.auth.getSession();
+  if (!session) {
+    window.location.replace(LOGIN_URL + '/?redirect=' + encodeURIComponent(location.href.split('#')[0]));
+    return;
+  }
+  window.micoUser = session.user;
+  window.micoAuthClient = authClient;
+  document.getElementById('mico-auth-style').remove();
+})();
+</script>
+<!-- ─────────────────────────────────────────────────────────────────────────── -->
 </head>
 <body>
 
@@ -320,6 +342,8 @@ tr.row-diff:hover td { background: #fff5e0; }
     <span id="sb-orig">Original: —</span>
     <span id="sb-corr">Corrected: —</span>
   </div>
+  <span id="nav-user-email" style="font-size:11px;color:rgba(255,255,255,.4);margin-left:auto;max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex-shrink:0;"></span>
+  <button onclick="micoSignOut()" style="margin-left:8px;background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.2);color:rgba(255,255,255,.75);font-size:12px;font-weight:600;padding:5px 12px;border-radius:6px;cursor:pointer;letter-spacing:.2px;flex-shrink:0;">Sign Out</button>
 </nav>
 
 <!-- ══ PAGES ══ -->
@@ -891,6 +915,17 @@ document.querySelectorAll('.upload-zone').forEach(z=>{
     inp.dispatchEvent(new Event('change'));
   });
 });
+
+
+// MICO Sign Out
+async function micoSignOut() {
+  if (window.micoAuthClient) await window.micoAuthClient.auth.signOut();
+  window.location.replace('https://login.micocc.net');
+}
+(function() {
+  const el = document.getElementById('nav-user-email');
+  if (el && window.micoUser?.email) el.textContent = window.micoUser.email;
+})();
 </script>
 </body>
 </html>
