@@ -292,9 +292,10 @@ tr.row-diff:hover td { background: #fff5e0; }
 </style>
 <!-- ── MICO Auth Guard ─────────────────────────────────────────────────────── -->
 <style id="mico-auth-style">body{visibility:hidden!important}</style>
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.49.4"></script>
 <script>
 (async function micoAuthGuard() {
+  if (location.protocol === 'file:') { document.getElementById('mico-auth-style').remove(); return; }
   const AUTH_URL = 'https://kbqkwlhmkvwnutqkcstx.supabase.co';
   const AUTH_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImticWt3bGhta3Z3bnV0cWtjc3R4Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzYxMDY0ODUsImV4cCI6MjA5MTY4MjQ4NX0.Fxhi8kP391JBOMNuQvRpT7p4ssf-z5oxv-ooslrsEj4';
   const LOGIN_URL = 'https://login.micocc.net';
