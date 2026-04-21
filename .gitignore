@@ -1,0 +1,8 @@
+# Local reference files — never pushed
+reference/
+
+# OS junk
+.DS_Store
+Thumbs.db
+desktop.ini
+
