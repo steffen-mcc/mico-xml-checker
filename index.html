@@ -785,13 +785,45 @@ const amtSty     = { numFmt:ACCT_FMT };
 const gtLblSty   = { font:{bold:true, underline:true}, fill:{fgColor:{rgb:'E8ECF3'}}, alignment:{horizontal:'right'} };
 const gtAmtSty   = { font:{bold:true}, fill:{fgColor:{rgb:'E8ECF3'}}, numFmt:ACCT_FMT };
 
-function triggerDownload(wb, fname) {
+// Build filename from state (week ending + contract)
+function buildXlsxName(prefix) {
+  let we = (state.weekEnding||'').trim();
+  if (we && we !== '—') {
+    const d = new Date(we);
+    if (!isNaN(d.getTime())) {
+      const mm = String(d.getMonth()+1).padStart(2,'0');
+      const dd = String(d.getDate()).padStart(2,'0');
+      const yyyy = d.getFullYear();
+      we = `${mm}_${dd}_${yyyy}`;
+    } else {
+      we = we.replace(/[^A-Z0-9]/gi,'_').replace(/_+/g,'_').replace(/^_|_$/g,'');
+    }
+  } else { we = ''; }
+  const ctr = (state.contract||'').replace(/[^A-Z0-9]/gi,'').toUpperCase();
+  const parts = [prefix, we, ctr].filter(Boolean);
+  return parts.join('_') + '.xlsx';
+}
+
+// Save-as dialog (File System Access API) with fallback
+async function saveXlsx(wb, suggestedName) {
   const out  = XLSX.write(wb, {bookType:'xlsx', type:'array', cellStyles:true});
-  const blob = new Blob([out], {type:'application/octet-stream'});
-  const url  = URL.createObjectURL(blob);
-  const a    = document.createElement('a');
-  a.href=url; a.download=fname; a.click();
-  setTimeout(()=>URL.revokeObjectURL(url), 5000);
+  const blob = new Blob([out], {type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'});
+  if (window.showSaveFilePicker) {
+    try {
+      const handle = await window.showSaveFilePicker({
+        suggestedName,
+        types:[{description:'Excel Workbook', accept:{'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet':['.xlsx']}}]
+      });
+      const w = await handle.createWritable();
+      await w.write(blob); await w.close();
+      return;
+    } catch(e) { if(e.name==='AbortError') return; }
+  }
+  // Fallback: standard download
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href=url; a.download=suggestedName; a.click();
+  setTimeout(()=>URL.revokeObjectURL(url),5000);
 }
 
 // ── Excel 1: Differences Report ──
@@ -898,7 +930,7 @@ function downloadDiffExcel() {
   }
 
   XLSX.utils.book_append_sheet(wb, ws, 'Amount Differences');
-  triggerDownload(wb, `MCC_Differences_${new Date().toISOString().slice(0,10)}.xlsx`);
+  saveXlsx(wb, buildXlsxName('CHANGES'));
 }
 
 // ── HTML: Corrected Summary ──
@@ -928,12 +960,14 @@ function openSummaryHTML() {
   const count     = rows.length;
   const contract  = state.contract  || '—';
   const weekEnd   = state.weekEnding|| '—';
+  // Build suggested PDF filename (used as page <title> so browser pre-fills it on Print > Save PDF)
+  const pdfTitle  = buildXlsxName('SUMMARY').replace('.xlsx','');
 
   const html = `<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<title>MCC Corrected Invoice Summary</title>
+<title>${pdfTitle}</title>
 <style>
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
 body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;font-size:14px;color:#111d30;background:linear-gradient(160deg,#f0f3fa 0%,#e6eaf5 100%);min-height:100vh;padding:24px;}
