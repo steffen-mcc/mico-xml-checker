@@ -455,7 +455,7 @@ tr.row-diff:hover td { background: #fff5e0; }
     </div>
 
     <div style="display:flex;gap:10px;margin-bottom:22px;flex-wrap:wrap">
-      <button class="btn btn-charcoal btn-sm" id="dlExcelBtn2" onclick="downloadSummaryExcel()" disabled>&#8595; Download Corrected Summary</button>
+      <button class="btn btn-charcoal btn-sm" id="dlExcelBtn2" onclick="openSummaryHTML()" disabled>&#9654; Export Summary</button>
     </div>
 
     <div id="summaryEmpty" class="card">
@@ -503,6 +503,8 @@ const state = {
   onlyCorr: [],      // invoices only in corrected
   matchRows: [],     // invoices that match
   summaryRows: [],   // all corrected invoices for summary sheet
+  contract: '',      // CONTRACT value from XML / filename
+  weekEnding: '',    // week ending date from XML
 };
 
 // ── Navigation ──
@@ -563,6 +565,7 @@ function parseInv(inv) {
     totalCost:  t('TOTAL_COST')||'0',
     date:       dt.value,
     dateTag:    dt.tag,
+    contract:   t('CONTRACT'),
   };
 }
 
@@ -614,7 +617,36 @@ async function runCompare() {
 
     // Summary rows from corrected XML (all invoices)
     for(const [,corr] of corrMap) state.summaryRows.push(corr);
-    state.summaryRows.sort((a,b)=>a.school.localeCompare(b.school)||a.id.localeCompare(b.id));
+    state.summaryRows.sort((a,b)=>a.id.localeCompare(b.id,undefined,{numeric:true}));
+
+    // Extract contract # from first invoice with a value, or from filename
+    state.contract = [...corrMap.values()].find(d=>d.contract)?.contract || '';
+    if(!state.contract){
+      const m=state.corrFile.match(/\b([A-Z0-9]{4,}[-_][A-Z0-9]+|[A-Z]+-?\d{4,})\b/i);
+      if(m) state.contract=m[1];
+    }
+
+    // Extract week ending from XML (root or invoice level)
+    const WEEK_TAGS=['WEEK_ENDING','WEEK_END','PERIOD_END','PERIOD_END_DATE','PAY_PERIOD_END','PAYROLL_END_DATE','WEEK_END_DATE'];
+    state.weekEnding='';
+    for(const tag of WEEK_TAGS){
+      const el=corrDoc.querySelector(tag);
+      if(el&&el.textContent.trim()){state.weekEnding=el.textContent.trim();break;}
+    }
+    if(!state.weekEnding){
+      for(const inv of corrInvs){
+        for(const tag of WEEK_TAGS){
+          const el=inv.querySelector(tag);
+          if(el&&el.textContent.trim()){state.weekEnding=el.textContent.trim();break;}
+        }
+        if(state.weekEnding) break;
+      }
+    }
+    // Fallback: latest invoice date
+    if(!state.weekEnding){
+      const dates=[...corrMap.values()].map(d=>d.date).filter(d=>d&&d!=='—').sort();
+      if(dates.length) state.weekEnding=dates[dates.length-1];
+    }
 
 
     // Status msg
@@ -743,14 +775,15 @@ function updateBadges() {
 }
 
 // ── Shared helpers ──
-const hdrStyle   = { font:{bold:true,color:{rgb:'FFFFFF'}}, fill:{fgColor:{rgb:'1A3560'}}, alignment:{horizontal:'center'} };
-const origAmtSty = { font:{color:{rgb:'C0392B'},bold:true}, numFmt:'$#,##0.00' };
-const corrAmtSty = { font:{color:{rgb:'1E6B3A'},bold:true}, numFmt:'$#,##0.00' };
-const deltaSty   = { font:{bold:true}, fill:{fgColor:{rgb:'FFF3E0'}}, numFmt:'$#,##0.00' };
+const ACCT_FMT   = '#,##0.00;(#,##0.00)';
+const hdrStyle   = { font:{bold:true, underline:true, color:{rgb:'FFFFFF'}}, fill:{fgColor:{rgb:'1A3560'}}, alignment:{horizontal:'center'} };
+const origAmtSty = { font:{color:{rgb:'C0392B'},bold:true}, numFmt:ACCT_FMT };
+const corrAmtSty = { font:{color:{rgb:'1E6B3A'},bold:true}, numFmt:ACCT_FMT };
+const deltaSty   = { font:{bold:true}, fill:{fgColor:{rgb:'FFF3E0'}}, numFmt:ACCT_FMT };
 const rowSty     = { fill:{fgColor:{rgb:'FFFBF5'}} };
-const amtSty     = { numFmt:'$#,##0.00' };
-const gtLblSty   = { font:{bold:true}, fill:{fgColor:{rgb:'F0EDE6'}} };
-const gtAmtSty   = { font:{bold:true}, fill:{fgColor:{rgb:'F0EDE6'}}, numFmt:'$#,##0.00' };
+const amtSty     = { numFmt:ACCT_FMT };
+const gtLblSty   = { font:{bold:true, underline:true}, fill:{fgColor:{rgb:'E8ECF3'}}, alignment:{horizontal:'right'} };
+const gtAmtSty   = { font:{bold:true}, fill:{fgColor:{rgb:'E8ECF3'}}, numFmt:ACCT_FMT };
 
 function triggerDownload(wb, fname) {
   const out  = XLSX.write(wb, {bookType:'xlsx', type:'array', cellStyles:true});
@@ -764,7 +797,7 @@ function triggerDownload(wb, fname) {
 // ── Excel 1: Differences Report ──
 function downloadDiffExcel() {
   const wb = XLSX.utils.book_new();
-  const sorted = [...state.diffRows].sort((a,b)=>Math.abs(b.delta)-Math.abs(a.delta));
+  const sorted = [...state.diffRows].sort((a,b)=>a.id.localeCompare(b.id,undefined,{numeric:true}));
   const nDiff  = sorted.length;
 
   // ── Grand totals across ALL invoices ──
@@ -777,11 +810,11 @@ function downloadDiffExcel() {
   const grandDiff = sorted.reduce((s,r)=>s+r.delta,0);
 
   // ── Summary table (rows 0-6) ──
-  const titleSty  = { font:{bold:true, sz:14, color:{rgb:'FFFFFF'}}, fill:{fgColor:{rgb:'1A3560'}}, alignment:{horizontal:'center', vertical:'center'} };
-  const smHdrSty  = { font:{bold:true, color:{rgb:'FFFFFF'}}, fill:{fgColor:{rgb:'2C4E8A'}}, alignment:{horizontal:'center'} };
-  const smValOrigSty = { font:{bold:true, sz:13, color:{rgb:'C0392B'}}, fill:{fgColor:{rgb:'FDF0EE'}}, numFmt:'$#,##0.00', alignment:{horizontal:'center'} };
-  const smValCorrSty = { font:{bold:true, sz:13, color:{rgb:'1E6B3A'}}, fill:{fgColor:{rgb:'EDF6F0'}}, numFmt:'$#,##0.00', alignment:{horizontal:'center'} };
-  const smValDiffSty = { font:{bold:true, sz:13, color:{rgb:'1A3560'}}, fill:{fgColor:{rgb:'EEF3F9'}}, numFmt:'$#,##0.00', alignment:{horizontal:'center'} };
+  const titleSty  = { font:{bold:true, underline:true, sz:14, color:{rgb:'FFFFFF'}}, fill:{fgColor:{rgb:'1A3560'}}, alignment:{horizontal:'center', vertical:'center'} };
+  const smHdrSty  = { font:{bold:true, underline:true, color:{rgb:'FFFFFF'}}, fill:{fgColor:{rgb:'2C4E8A'}}, alignment:{horizontal:'center'} };
+  const smValOrigSty = { font:{bold:true, sz:13, color:{rgb:'C0392B'}}, fill:{fgColor:{rgb:'FDF0EE'}}, numFmt:ACCT_FMT, alignment:{horizontal:'center'} };
+  const smValCorrSty = { font:{bold:true, sz:13, color:{rgb:'1E6B3A'}}, fill:{fgColor:{rgb:'EDF6F0'}}, numFmt:ACCT_FMT, alignment:{horizontal:'center'} };
+  const smValDiffSty = { font:{bold:true, sz:13, color:{rgb:'1A3560'}}, fill:{fgColor:{rgb:'EEF3F9'}}, numFmt:ACCT_FMT, alignment:{horizontal:'center'} };
 
   const data = [
     // Row 0: title (merged A1:G1)
@@ -824,7 +857,7 @@ function downloadDiffExcel() {
   }
 
   const ws = XLSX.utils.aoa_to_sheet(data);
-  ws['!cols'] = [{wch:16},{wch:24},{wch:28},{wch:22},{wch:22},{wch:18},{wch:18}];
+  ws['!cols'] = [{wch:16},{wch:22},{wch:32},{wch:24},{wch:24},{wch:20},{wch:16}];
 
   // Row height for title and summary rows
   ws['!rows'] = [{hpt:28},{hpt:6},{hpt:22},{hpt:28},{hpt:6},{hpt:6},{hpt:16}];
@@ -868,37 +901,180 @@ function downloadDiffExcel() {
   triggerDownload(wb, `MCC_Differences_${new Date().toISOString().slice(0,10)}.xlsx`);
 }
 
-// ── Excel 2: Corrected Summary ──
-function downloadSummaryExcel() {
-  const wb = XLSX.utils.book_new();
+// ── HTML: Corrected Summary ──
+function fmtAcct(n) {
+  if (n == null || isNaN(n)) return '-';
+  const abs = Math.abs(n).toLocaleString('en-US', {minimumFractionDigits:2, maximumFractionDigits:2});
+  return n < 0 ? `(${abs})` : abs;
+}
 
-  const data = [['School Code','Invoice Date','Invoice Number','Invoice Total Amount']];
+function openSummaryHTML() {
+  const rows = [...state.summaryRows].sort((a,b)=>a.id.localeCompare(b.id,undefined,{numeric:true}));
   let grand = 0;
-  for(const r of state.summaryRows){
+
+  const rowsHTML = rows.map((r, i) => {
     const amt = parseFloat(r.totalAmount)||0;
     grand += amt;
-    data.push([r.school||'', r.date||'', r.id||'', amt]);
-  }
-  data.push(['','','Grand Total', grand]);
+    const even = i % 2 === 1;
+    return `<tr${even?' class="even"':''}>
+      <td class="b">${r.id||''}</td>
+      <td>${r.school||''}</td>
+      <td>${r.date||''}</td>
+      <td class="r b">${fmtAcct(amt)}</td>
+    </tr>`;
+  }).join('');
 
-  const ws = XLSX.utils.aoa_to_sheet(data);
-  ws['!cols'] = [{wch:18},{wch:16},{wch:18},{wch:22}];
+  const dateStr   = new Date().toLocaleDateString('en-US',{year:'numeric',month:'long',day:'numeric'});
+  const count     = rows.length;
+  const contract  = state.contract  || '—';
+  const weekEnd   = state.weekEnding|| '—';
 
-  ['A1','B1','C1','D1'].forEach(addr=>{ if(ws[addr]) ws[addr].s=hdrStyle; });
+  const html = `<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>MCC Corrected Invoice Summary</title>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;font-size:14px;color:#111d30;background:linear-gradient(160deg,#f0f3fa 0%,#e6eaf5 100%);min-height:100vh;padding:24px;}
+/* PRINT BAR */
+.print-bar{max-width:960px;margin:0 auto 18px;display:flex;align-items:center;justify-content:space-between;gap:12px;background:white;border-radius:8px;padding:12px 18px;box-shadow:0 3px 14px rgba(0,0,0,.12);}
+.print-bar-note{font-size:11px;color:#6b7280;}
+.print-bar-note strong{color:#0d2247;}
+.print-bar-btns{display:flex;gap:8px;}
+.print-btn{padding:9px 20px;border-radius:6px;border:none;cursor:pointer;font-size:13px;font-weight:700;font-family:inherit;letter-spacing:.2px;}
+.print-btn.primary{background:linear-gradient(135deg,#c8a94a,#e0c060);color:#3a2400;}
+.print-btn.primary:hover{opacity:.9;}
+.print-btn.secondary{background:#f3f4f6;color:#374151;border:1px solid #d1d5db;}
+/* DOCUMENT */
+.document{max-width:960px;margin:0 auto;background:white;border-radius:8px;box-shadow:0 6px 32px rgba(13,34,71,.18);overflow:hidden;}
+/* HEADER */
+.doc-header{display:grid;grid-template-columns:1fr auto 1fr;align-items:center;gap:20px;background:linear-gradient(135deg,#0b1526 0%,#0d2247 55%,#1a3a6b 100%);padding:22px 28px;border-bottom:4px solid #c8a94a;}
+.header-brand{font-size:22px;font-weight:900;color:white;letter-spacing:-.5px;text-shadow:0 1px 4px rgba(0,0,0,.3);}
+.header-brand span{color:#c8a94a;}
+.header-center{text-align:center;}
+.header-doc-type{font-size:8.5pt;font-weight:800;color:#8a9ab5;letter-spacing:3px;text-transform:uppercase;margin-bottom:4px;}
+.header-doc-name{font-size:16pt;font-weight:900;color:white;letter-spacing:.5px;line-height:1.1;}
+.header-info{text-align:right;}
+.header-info p{font-size:9pt;color:#bcc7d8;line-height:1.7;margin:0;}
+.header-info .gold{color:#c8a94a;font-weight:600;}
+/* BODY */
+.doc-body{padding:26px 30px 34px;}
+/* META GRID */
+.meta-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:24px;}
+.meta-block{background:#f0f3fa;border-radius:6px;padding:10px 14px;border-left:3px solid #c8a94a;}
+.meta-label{font-size:8pt;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:#8a9ab5;margin-bottom:2px;}
+.meta-value{font-size:10.5pt;font-weight:700;color:#0d2247;}
+/* SECTION HEADING */
+.sec-heading{display:flex;align-items:center;gap:12px;margin:0 0 12px;}
+.sec-heading-title{font-size:9pt;font-weight:800;text-transform:uppercase;letter-spacing:1.2px;color:#0d2247;white-space:nowrap;}
+.sec-heading-bar{height:3px;flex:1;background:linear-gradient(90deg,#c8a94a 0%,rgba(200,169,74,.15) 100%);}
+/* TABLE */
+table{width:100%;border-collapse:collapse;font-size:9.5pt;}
+thead th{background:#0d2247;color:#c8a94a;font-size:7.5pt;font-weight:700;letter-spacing:.5px;text-transform:uppercase;padding:9px 11px;text-align:left;text-decoration:underline;}
+thead th:first-child{border-radius:6px 0 0 0;}
+thead th:last-child{border-radius:0 6px 0 0;}
+thead th.r{text-align:right;}
+tbody td{padding:8px 11px;border-bottom:1px solid #eef1f6;vertical-align:middle;}
+tr.even td{background:#f8fafc;}
+tfoot td{background:#0d2247;color:white;font-weight:700;border-top:3px solid #c8a94a;padding:10px 11px;}
+tfoot td.r{color:#c8a94a;font-family:'Courier New',monospace;font-size:10.5pt;}
+tfoot td.label{color:#c8a94a;font-size:8pt;text-transform:uppercase;letter-spacing:.8px;}
+.n{text-align:center;color:#9ca3af;width:32px;}
+.r{text-align:right;}
+.b{font-weight:700;color:#0d2247;}
+/* FOOTER */
+.doc-footer{display:flex;justify-content:space-between;font-size:8pt;color:#9ca3af;margin-top:20px;padding-top:10px;border-top:1px solid #eef1f6;}
+.doc-footer .gold{color:#c8a94a;font-weight:700;}
+@media print{
+  body{background:white;padding:0;}
+  .print-bar{display:none!important;}
+  .document{max-width:none;margin:0;box-shadow:none;border-radius:0;}
+  .doc-header,.meta-block,thead th,tfoot td{-webkit-print-color-adjust:exact;print-color-adjust:exact;}
+  tr.even td{-webkit-print-color-adjust:exact;print-color-adjust:exact;}
+  @page{margin:.55in .65in .6in .65in;size:letter portrait;}
+}
+</style>
+</head>
+<body>
+<div class="print-bar">
+  <div class="print-bar-note">💡 Enable <strong>Background graphics</strong> in the print dialog for full color output.</div>
+  <div class="print-bar-btns">
+    <button class="print-btn secondary" onclick="window.close()">✕ Close</button>
+    <button class="print-btn primary" onclick="window.print()">🖨&nbsp; Save as PDF / Print</button>
+  </div>
+</div>
 
-  for(let i=2;i<=state.summaryRows.length+1;i++){
-    const addr=XLSX.utils.encode_cell({r:i-1,c:3});
-    if(ws[addr]) ws[addr].s=amtSty;
-  }
+<div class="document">
+  <div class="doc-header">
+    <div>
+      <div class="header-brand">Mico <span>Cooling</span></div>
+    </div>
+    <div class="header-center">
+      <div class="header-doc-name">Invoice Report</div>
+    </div>
+    <div class="header-info">
+      <p>30 Ramland Road — Suite 103</p>
+      <p>Orangeburg, NY 10962</p>
+      <p class="gold">www.micocooling.com</p>
+    </div>
+  </div>
 
-  const gt = state.summaryRows.length+2;
-  const gl = XLSX.utils.encode_cell({r:gt-1,c:2});
-  const ga = XLSX.utils.encode_cell({r:gt-1,c:3});
-  if(ws[gl]) ws[gl].s=gtLblSty;
-  if(ws[ga]) ws[ga].s=gtAmtSty;
+  <div class="doc-body">
+    <div class="meta-grid">
+      <div class="meta-block">
+        <div class="meta-label">Contract #</div>
+        <div class="meta-value">${contract}</div>
+      </div>
+      <div class="meta-block">
+        <div class="meta-label">Week Ending</div>
+        <div class="meta-value">${weekEnd}</div>
+      </div>
+      <div class="meta-block">
+        <div class="meta-label">Total Invoices</div>
+        <div class="meta-value">${count}</div>
+      </div>
+      <div class="meta-block">
+        <div class="meta-label">Generated</div>
+        <div class="meta-value">${dateStr}</div>
+      </div>
+    </div>
 
-  XLSX.utils.book_append_sheet(wb, ws, 'Corrected Summary');
-  triggerDownload(wb, `MCC_Corrected_Summary_${new Date().toISOString().slice(0,10)}.xlsx`);
+    <div class="sec-heading">
+      <div class="sec-heading-title">Invoices</div>
+      <div class="sec-heading-bar"></div>
+    </div>
+
+    <table>
+      <thead>
+        <tr>
+          <th>Invoice Number</th>
+          <th>School Code</th>
+          <th>Invoice Date</th>
+          <th class="r">Amount</th>
+        </tr>
+      </thead>
+      <tbody>${rowsHTML}</tbody>
+      <tfoot>
+        <tr>
+          <td colspan="3" class="label">Grand Total</td>
+          <td class="r">${fmtAcct(grand)}</td>
+        </tr>
+      </tfoot>
+    </table>
+
+    <div class="doc-footer">
+      <span>Source: ${state.corrFile||'Corrected XML'}</span>
+      <span class="gold">MICO COOLING CORP.</span>
+    </div>
+  </div>
+</div>
+</body>
+</html>`;
+
+  const blob = new Blob([html], {type:'text/html'});
+  const url  = URL.createObjectURL(blob);
+  window.open(url, '_blank');
 }
 
 // ── Drag & drop ──
