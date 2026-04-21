@@ -924,6 +924,10 @@ async function micoSignOut() {
   const el = document.getElementById('nav-user-email');
   if (el && window.micoUser?.email) el.textContent = window.micoUser.email;
 })();
+
+// Logo → refresh page
+const _logo = document.querySelector('.nav-logo-img');
+if (_logo) { _logo.style.cursor = 'pointer'; _logo.title = 'Refresh'; _logo.addEventListener('click', () => location.reload()); }
 </script>
 </body>
 </html>
