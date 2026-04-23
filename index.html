@@ -494,6 +494,7 @@ const $ = id => document.getElementById(id);
 const TOLERANCE = 0.005;
 const fmtMoney = v => { const n=parseFloat(v); return isNaN(n)?String(v):'$'+Math.abs(n).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2}); };
 const r2 = v => Math.round(parseFloat(v)*100)/100;
+const escHtml = s => String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 
 const state = {
   origDoc: null, origFile: '',
@@ -694,9 +695,9 @@ function renderDiff() {
       const dClass=r.delta>0?'delta-pos':'delta-neg';
       const sign=r.delta>0?'+':'';
       tr.innerHTML=`
-        <td class="mono">${r.id}</td>
-        <td class="mono text2">${r.po}</td>
-        <td style="max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${r.school}</td>
+        <td class="mono">${escHtml(r.id)}</td>
+        <td class="mono text2">${escHtml(r.po)}</td>
+        <td style="max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escHtml(r.school)}</td>
         <td class="amt-orig">${fmtMoney(r.origAmt)}</td>
         <td class="amt-corr">${fmtMoney(r.corrAmt)}</td>
         <td class="${dClass}" style="font-weight:600">${sign}${fmtMoney(r.delta)}</td>
@@ -713,9 +714,9 @@ function renderDiff() {
     const tb=$('onlyOrigTbody'); tb.innerHTML='';
     for(const r of onlyOrig){
       tb.innerHTML+=`<tr>
-        <td class="mono">${r.id}</td>
-        <td class="mono text2">${r.po}</td>
-        <td>${r.school}</td>
+        <td class="mono">${escHtml(r.id)}</td>
+        <td class="mono text2">${escHtml(r.po)}</td>
+        <td>${escHtml(r.school)}</td>
         <td class="mono">${fmtMoney(r.totalAmount)}</td>
         <td><span class="only-pill only-orig">Not in corrected</span></td>
       </tr>`;
@@ -728,9 +729,9 @@ function renderDiff() {
     const tb=$('onlyCorrTbody'); tb.innerHTML='';
     for(const r of onlyCorr){
       tb.innerHTML+=`<tr>
-        <td class="mono">${r.id}</td>
-        <td class="mono text2">${r.po}</td>
-        <td>${r.school}</td>
+        <td class="mono">${escHtml(r.id)}</td>
+        <td class="mono text2">${escHtml(r.po)}</td>
+        <td>${escHtml(r.school)}</td>
         <td class="mono">${fmtMoney(r.totalAmount)}</td>
         <td><span class="only-pill only-corr">Not in original</span></td>
       </tr>`;
@@ -750,9 +751,9 @@ function renderSummary() {
     const amt=parseFloat(r.totalAmount)||0;
     grand+=amt;
     tbody.innerHTML+=`<tr>
-      <td class="mono">${r.school||'—'}</td>
-      <td class="mono text2">${r.date||'—'}</td>
-      <td class="mono">${r.id||'—'}</td>
+      <td class="mono">${escHtml(r.school||'—')}</td>
+      <td class="mono text2">${escHtml(r.date||'—')}</td>
+      <td class="mono">${escHtml(r.id||'—')}</td>
       <td class="mono" style="font-weight:500">${fmtMoney(amt)}</td>
     </tr>`;
   }
@@ -974,9 +975,9 @@ function openSummaryHTML() {
     grand += amt;
     const even = i % 2 === 1;
     return `<tr${even?' class="even"':''}>
-      <td class="b">${r.id||''}</td>
-      <td>${r.school||''}</td>
-      <td>${r.date||''}</td>
+      <td class="b">${escHtml(r.id||'')}</td>
+      <td>${escHtml(r.school||'')}</td>
+      <td>${escHtml(r.date||'')}</td>
       <td class="r b">${fmtAcct(amt)}</td>
     </tr>`;
   }).join('');
