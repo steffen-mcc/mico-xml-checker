@@ -310,6 +310,16 @@ tr.row-diff:hover td { background: #fff5e0; }
     window.location.replace(LOGIN_URL + '/?redirect=' + encodeURIComponent(location.href.split('#')[0]));
     return;
   }
+  // ── Role check ──────────────────────────────────────────────────────────────
+  const MINIMUM_ROLE = 'staff';
+  const _rl = { technician: 1, staff: 2, executive: 3, admin: 4 };
+  const { data: _p } = await authClient.from('profiles').select('role,is_active').eq('id', session.user.id).single();
+  const _ur = (_p && _p.is_active !== false) ? _p.role : null;
+  if ((_rl[_ur] ?? 0) < (_rl[MINIMUM_ROLE] ?? 99)) {
+    document.getElementById('mico-auth-style')?.remove();
+    document.body.innerHTML = `<div style="display:flex;align-items:center;justify-content:center;min-height:100vh;background:#f0f3fa;font-family:Inter,sans-serif;text-align:center"><div style="max-width:420px;padding:48px 32px"><div style="font-size:44px;margin-bottom:16px">🔒</div><h2 style="font-size:22px;font-weight:800;color:#0d2247;margin-bottom:12px">Access Restricted</h2><p style="color:#7a8fac;font-size:14px;line-height:1.6;margin-bottom:28px">You don't have permission to access this app. Contact your administrator if you need access.</p><a href="https://dashboard.micocc.net" style="display:inline-block;background:linear-gradient(160deg,#e0c060,#c8a94a 45%,#a8880f);color:rgba(50,32,0,.78);font-weight:700;font-size:12px;letter-spacing:.7px;text-transform:uppercase;padding:10px 24px;border-radius:6px;text-decoration:none">Return to Dashboard</a></div></div>`;
+    return;
+  }
   window.micoUser = session.user;
   window.micoAuthClient = authClient;
   document.getElementById('mico-auth-style').remove();
