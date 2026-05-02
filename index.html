@@ -292,6 +292,64 @@ tr.row-diff:hover td { background: #fff5e0; }
   #app-nav { padding: 0 16px; }
 
 }
+
+/* ── Defensive Mobile CSS ────────────────────────────────────────────────
+   Tables scroll horizontally, modals fit viewport, form grids collapse,
+   inputs constrain to width. Desktop layout unchanged above 768px.
+   ─────────────────────────────────────────────────────────────────────── */
+@media (max-width: 768px) {
+  /* Tables: horizontal scroll instead of viewport overflow */
+  table {
+    display: block;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    max-width: 100%;
+  }
+  /* Modals: constrain to viewport */
+  .modal, .modal-box {
+    max-width: 95vw !important;
+    max-height: 90vh;
+    overflow-y: auto;
+    box-sizing: border-box;
+  }
+  .modal-overlay, .modal-ov, .modal-backdrop {
+    padding: 16px;
+    box-sizing: border-box;
+    overflow-y: auto;
+  }
+  /* Form grids: collapse to single column */
+  .form-grid, .form-grid-2, .form-grid-3, .form-grid-4,
+  .form-row, .admin-form-row, .admin-grid,
+  .header-grid, .ext-grid, .upload-grid, .meta-grid,
+  .dash-row-2, .dash-row-2-eq, .hero-kpi-grid, .stats-row {
+    grid-template-columns: 1fr !important;
+    flex-wrap: wrap;
+  }
+  /* Dashboard app tiles: 2 columns on tablet */
+  .app-grid { grid-template-columns: 1fr 1fr !important; }
+  /* Inputs: prevent overflow */
+  input:not([type="checkbox"]):not([type="radio"]),
+  select, textarea {
+    max-width: 100%;
+    box-sizing: border-box;
+  }
+  /* Page padding: breathe on small screens */
+  .page-wrap {
+    padding-left: 16px !important;
+    padding-right: 16px !important;
+  }
+  /* Charts: no horizontal bleed */
+  .chart-card, .chart-wrap, .chart-wrap-sm {
+    max-width: 100%;
+    overflow-x: hidden;
+  }
+}
+@media (max-width: 480px) {
+  /* Phone: single column for everything */
+  .app-grid { grid-template-columns: 1fr !important; }
+  .hero-kpi-grid, .kpi-card { grid-template-columns: 1fr !important; }
+  .nav-appname { font-size: 10px !important; letter-spacing: 1px !important; }
+}
 </style>
 <!-- ── MICO Auth Guard ─────────────────────────────────────────────────────── -->
 <style id="mico-auth-style">body{visibility:hidden!important}</style>
