@@ -3,8 +3,8 @@
   "short_name": "XML Checker",
   "start_url": ".",
   "display": "standalone",
-  "background_color": "#0d2248",
-  "theme_color": "#0d2248",
+  "background_color": "#0d2247",
+  "theme_color": "#0d2247",
   "icons": [
     {
       "src": "icon-192.png",
