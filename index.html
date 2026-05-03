@@ -735,7 +735,7 @@ async function runCompare() {
     updateBadges();
 
   } catch(e) {
-    $('compareStatus').innerHTML=`<div class="ai-status error"><span class="ai-icon">&times;</span><div><strong>Error:</strong> ${e.message}</div></div>`;
+    $(`compareStatus`).innerHTML='<div class="ai-status error"><span class="ai-icon">&times;</span><div><strong>Error:</strong> Something went wrong processing the files. Please try again.</div></div>';
   } finally {
     btn.disabled=false; btn.textContent='Compare Files';
   }
