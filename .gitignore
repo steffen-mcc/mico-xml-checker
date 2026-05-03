@@ -6,3 +6,10 @@ reference/
 Thumbs.db
 desktop.ini
 
+
+# wrangler files
+.wrangler
+.dev.vars*
+!.dev.vars.example
+.env*
+!.env.example
